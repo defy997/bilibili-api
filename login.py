@@ -141,17 +141,21 @@ def qr_login():
                 access_token = token_info.get('access_token')
                 refresh_token = token_info.get('refresh_token')
                 
-                # 查找SESSDATA
+                # 查找SESSDATA和bili_jct
                 sessdata = None
+                bili_jct = None
                 for cookie in cookie_info.get('cookies', []):
-                    if cookie.get('name') == 'SESSDATA':
+                    cookie_name = cookie.get('name')
+                    if cookie_name == 'SESSDATA':
                         sessdata = cookie.get('value')
-                        break
+                    elif cookie_name == 'bili_jct':
+                        bili_jct = cookie.get('value')
                 
                 print(f"\n用户ID: {data.get('mid')}")
                 print(f"Access Token: {access_token[:20]}...")
                 print(f"Refresh Token: {refresh_token[:20]}...")
                 print(f"SESSDATA: {sessdata}")
+                print(f"bili_jct: {bili_jct[:20] if bili_jct else '未找到'}...")
                 
                 # 保存token信息到文件
                 tokens_file = "tokens.json"
@@ -159,6 +163,7 @@ def qr_login():
                     'access_token': access_token,
                     'refresh_token': refresh_token,
                     'sessdata': sessdata,
+                    'bili_jct': bili_jct,  # 保存CSRF token用于刷新
                     'mid': data.get('mid'),
                     'expires_in': token_info.get('expires_in'),
                     'obtained_at': datetime.now().isoformat()
@@ -169,9 +174,28 @@ def qr_login():
                 
                 print(f"\n✅ Token信息已保存到: {os.path.abspath(tokens_file)}")
                 print("\n下一步操作:")
-                print("1. 将 ACCESS_TOKEN 和 REFRESH_TOKEN 添加到 GitHub Secrets")
-                print("2. 设置 GitHub Actions 自动刷新（参考 .github/workflows/refresh.yml）")
-                print("3. 或者使用 setup_github.py 脚本自动配置")
+                print("1. 运行 setup_github.py 自动更新 GitHub Secrets")
+                print("2. 或者手动在 GitHub 仓库设置中添加 Secrets")
+                print("3. GitHub Actions 会自动在每天 00:00 刷新 SESSDATA")
+                
+                # 询问是否立即更新 GitHub Secrets
+                print("\n" + "=" * 50)
+                update_github = input("是否立即运行 setup_github.py 更新 GitHub Secrets? (y/n): ").strip().lower()
+                if update_github == 'y':
+                    print("\n正在运行 setup_github.py...")
+                    try:
+                        import subprocess
+                        subprocess.run(['python', 'setup_github.py'], check=True)
+                    except FileNotFoundError:
+                        print("⚠️  未找到 setup_github.py，请手动运行")
+                    except subprocess.CalledProcessError:
+                        print("⚠️  setup_github.py 执行失败，请手动运行")
+                    except Exception as e:
+                        print(f"⚠️  运行 setup_github.py 时出错: {e}")
+                        print("请手动运行: python setup_github.py")
+                else:
+                    print("\n稍后可以运行以下命令更新 GitHub Secrets:")
+                    print("  python setup_github.py")
                 
                 break
             elif poll_data.get('code') == 86101:

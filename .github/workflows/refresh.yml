@@ -23,12 +23,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests pytz pynacl
+          pip install requests pytz pynacl pycryptodome
 
       - name: Refresh SESSDATA
         env:
-          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          SESSDATA: ${{ secrets.SESSDATA }}
+          BILI_JCT: ${{ secrets.BILI_JCT }}
+          MID: ${{ secrets.MID }}
           REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
           GITHUB_REPO: ${{ github.event.repository.name }}

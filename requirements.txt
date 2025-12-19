@@ -1,0 +1,6 @@
+requests
+pytz
+qrcode[pil]
+pynacl
+pycryptodome
+

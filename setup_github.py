@@ -66,6 +66,8 @@ def main():
     print(f"  - Access Token: {tokens['access_token'][:20]}...")
     print(f"  - Refresh Token: {tokens['refresh_token'][:20]}...")
     print(f"  - SESSDATA: {tokens['sessdata']}")
+    print(f"  - bili_jct: {tokens.get('bili_jct', '未找到')[:20] if tokens.get('bili_jct') else '未找到'}...")
+    print(f"  - MID: {tokens.get('mid', '未找到')}")
     
     # 获取GitHub信息
     print("\n" + "=" * 60)
@@ -109,6 +111,36 @@ def main():
             print("✅ REFRESH_TOKEN 更新成功")
         else:
             print(f"❌ REFRESH_TOKEN 更新失败: HTTP {status}")
+        
+        # 更新SESSDATA（用于Cookie刷新）
+        if tokens.get('sessdata'):
+            print("\n正在更新 SESSDATA...")
+            status = update_secret(github_token, owner, repo, 'SESSDATA', 
+                                  tokens['sessdata'], key_id, public_key)
+            if status == 201 or status == 204:
+                print("✅ SESSDATA 更新成功")
+            else:
+                print(f"❌ SESSDATA 更新失败: HTTP {status}")
+        
+        # 更新BILI_JCT（用于Cookie刷新）
+        if tokens.get('bili_jct'):
+            print("\n正在更新 BILI_JCT...")
+            status = update_secret(github_token, owner, repo, 'BILI_JCT', 
+                                  tokens['bili_jct'], key_id, public_key)
+            if status == 201 or status == 204:
+                print("✅ BILI_JCT 更新成功")
+            else:
+                print(f"❌ BILI_JCT 更新失败: HTTP {status}")
+        
+        # 更新MID（用于Cookie刷新）
+        if tokens.get('mid'):
+            print("\n正在更新 MID...")
+            status = update_secret(github_token, owner, repo, 'MID', 
+                                  str(tokens['mid']), key_id, public_key)
+            if status == 201 or status == 204:
+                print("✅ MID 更新成功")
+            else:
+                print(f"❌ MID 更新失败: HTTP {status}")
         
         # 更新REPO_ACCESS_TOKEN（用于GitHub Actions提交代码）
         print("\nREPO_ACCESS_TOKEN 用于GitHub Actions自动提交代码")

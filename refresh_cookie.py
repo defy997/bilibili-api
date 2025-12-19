@@ -1,7 +1,7 @@
 """
-本地刷新SESSDATA脚本
-使用B站官方的Cookie刷新机制
+B站Cookie刷新实现
 基于: https://blog.csdn.net/gitblog_00169/article/details/152153957
+实现B站官方的Cookie刷新机制
 """
 import json
 import os
@@ -15,15 +15,6 @@ import binascii
 import requests
 import pytz
 
-# B站公钥（用于生成CorrespondPath）
-BILIBILI_PUBLIC_KEY = '''-----BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgd2OAkcGVtoE3ThUREbio0Eg
-Uc/prcajMKXvkCKFCWhJYJcLkcM2DKKcSeFpD/j6Boy538YXnR6VhcuUJOhH2x71
-nzPjfdTcqMz7djHum0qSZA0AyCBDABUqCrfNgCiJ00Ra7GmRj+YCK1NJEuewlb40
-JNrRuoEUXpabUzGB8QIDAQAB
------END PUBLIC KEY-----'''
-
-# 添加必要的请求头，避免被B站安全策略拦截
 BILIBILI_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Referer': 'https://www.bilibili.com/',
@@ -32,9 +23,17 @@ BILIBILI_HEADERS = {
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
 }
 
+# B站公钥（用于生成CorrespondPath）
+BILIBILI_PUBLIC_KEY = '''-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgd2OAkcGVtoE3ThUREbio0Eg
+Uc/prcajMKXvkCKFCWhJYJcLkcM2DKKcSeFpD/j6Boy538YXnR6VhcuUJOhH2x71
+nzPjfdTcqMz7djHum0qSZA0AyCBDABUqCrfNgCiJ00Ra7GmRj+YCK1NJEuewlb40
+JNrRuoEUXpabUzGB8QIDAQAB
+-----END PUBLIC KEY-----'''
+
 
 def get_correspond_path(timestamp):
-    """生成CorrespondPath签名（RSA-OAEP加密）"""
+    """生成CorrespondPath签名"""
     key = RSA.importKey(BILIBILI_PUBLIC_KEY)
     cipher = PKCS1_OAEP.new(key, SHA256)
     encrypted = cipher.encrypt(f'refresh_{timestamp}'.encode())
@@ -128,12 +127,10 @@ def confirm_refresh(old_refresh_token, cookies):
     except Exception as e:
         print(f"确认更新失败: {e}")
         return False
-    return sign
 
 
-def refresh_local():
-    """从本地tokens.json读取token并刷新"""
-    # 检查tokens.json文件
+def refresh_bilibili_cookie():
+    """完整的Cookie刷新流程"""
     tokens_file = "tokens.json"
     if not os.path.exists(tokens_file):
         print(f"❌ 错误: 未找到 {tokens_file} 文件")
@@ -144,23 +141,13 @@ def refresh_local():
     with open(tokens_file, 'r', encoding='utf-8') as f:
         tokens = json.load(f)
     
-    access_token = tokens.get('access_token')
-    refresh_token = tokens.get('refresh_token')
-    
-    if not access_token or not refresh_token:
-        print("❌ 错误: tokens.json 中缺少 access_token 或 refresh_token")
-        return False
-    
-    print("=" * 60)
-    print("B站Cookie刷新流程（官方方法）")
-    print("=" * 60)
-    
     sessdata = tokens.get('sessdata')
     bili_jct = tokens.get('bili_jct')
+    refresh_token = tokens.get('refresh_token')
     mid = tokens.get('mid')
     
     if not sessdata or not bili_jct or not refresh_token:
-        print("❌ 错误: tokens.json 中缺少必要信息（sessdata、bili_jct、refresh_token）")
+        print("❌ 错误: tokens.json 中缺少必要信息")
         print("请运行 login.py 重新登录")
         return False
     
@@ -171,6 +158,10 @@ def refresh_local():
     }
     if mid:
         cookies['DedeUserID'] = str(mid)
+    
+    print("=" * 60)
+    print("B站Cookie刷新流程")
+    print("=" * 60)
     
     # 步骤1: 检查是否需要刷新
     print("\n步骤1: 检查是否需要刷新...")
@@ -217,9 +208,7 @@ def refresh_local():
         return False
     
     print("✅ Cookie刷新成功!")
-    new_sessdata = new_cookies.get('SESSDATA', sessdata)
-    new_bili_jct = new_cookies.get('bili_jct', bili_jct)
-    print(f"   新的SESSDATA: {new_sessdata[:30]}...")
+    print(f"   新的SESSDATA: {new_cookies.get('SESSDATA', 'N/A')[:30]}...")
     print(f"   新的refresh_token: {new_refresh_token[:20]}...")
     
     # 步骤5: 确认更新
@@ -229,43 +218,43 @@ def refresh_local():
     else:
         print("⚠️  确认更新失败，但Cookie已刷新")
     
+    # 更新tokens.json
+    print("\n步骤6: 更新tokens.json...")
+    tokens['sessdata'] = new_cookies.get('SESSDATA', sessdata)
+    tokens['bili_jct'] = new_cookies.get('bili_jct', bili_jct)
+    tokens['refresh_token'] = new_refresh_token
+    tokens['last_refreshed'] = datetime.now().isoformat()
+    
+    with open(tokens_file, 'w', encoding='utf-8') as f:
+        json.dump(tokens, f, indent=2, ensure_ascii=False)
+    
+    print("✅ tokens.json已更新")
+    
+    # 更新SESSDATA文件
+    print("\n步骤7: 更新SESSDATA文件...")
+    sessdata_info = {
+        'value': new_cookies.get('SESSDATA', sessdata),
+        'updated': datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S %Z')
+    }
+    
+    with open('SESSDATA', 'w', encoding='utf-8') as f:
+        f.write(json.dumps(sessdata_info, ensure_ascii=False))
+    
+    print("✅ SESSDATA文件已更新!")
+    print(f"   更新时间: {sessdata_info['updated']}")
+    
+    print("\n" + "=" * 60)
+    print("✅ Cookie刷新流程完成!")
+    print("=" * 60)
+    
+    return True
+
+
+if __name__ == "__main__":
     try:
-        
-        # 更新tokens.json
-        tokens['refresh_token'] = new_refresh_token
-        tokens['sessdata'] = new_sessdata
-        tokens['bili_jct'] = new_bili_jct
-        tokens['last_refreshed'] = datetime.now().isoformat()
-        
-        with open(tokens_file, 'w', encoding='utf-8') as f:
-            json.dump(tokens, f, indent=2, ensure_ascii=False)
-        
-        # 更新SESSDATA文件
-        sessdata_info = {
-            'value': new_sessdata,
-            'updated': datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S %Z')
-        }
-        
-        with open('SESSDATA', 'w', encoding='utf-8') as f:
-            f.write(json.dumps(sessdata_info, ensure_ascii=False))
-        
-        print("✅ SESSDATA刷新成功!")
-        print(f"   SESSDATA: {new_sessdata}")
-        print(f"   更新时间: {sessdata_info['updated']}")
-        print(f"   Token已更新到 {tokens_file}")
-        
-        return True
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ 网络请求错误: {e}")
-        return False
+        refresh_bilibili_cookie()
     except Exception as e:
         print(f"❌ 发生错误: {e}")
         import traceback
         traceback.print_exc()
-        return False
-
-
-if __name__ == "__main__":
-    refresh_local()
 
