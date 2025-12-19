@@ -29,27 +29,57 @@ proxies={'http': None, 'https': None}
 
 def get(route):
     url = base_address + route
-    return requests.get(url, proxies=proxies, headers=headers).json()
+    try:
+        response = requests.get(url, proxies=proxies, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ HTTP错误: {e}")
+        print(f"响应内容: {response.text[:500] if hasattr(response, 'text') else 'N/A'}")
+        raise
+    except Exception as e:
+        print(f"❌ 请求失败: {e}")
+        raise
 
 
 def put(route, params):
     url = base_address + route
     data = json.dumps(params)
-    return requests.put(url, data=data, headers=headers, proxies=proxies).status_code
+    try:
+        response = requests.put(url, data=data, headers=headers, proxies=proxies, timeout=10)
+        response.raise_for_status()
+        return response.status_code
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ HTTP错误: {e}")
+        print(f"响应内容: {response.text[:500] if hasattr(response, 'text') else 'N/A'}")
+        raise
+    except Exception as e:
+        print(f"❌ 请求失败: {e}")
+        raise
 
 
 def get_public_key():
-    r = get('public-key')
-    return r['key_id'], r['key']
+    try:
+        r = get('public-key')
+        return r['key_id'], r['key']
+    except KeyError as e:
+        print(f"❌ 获取公钥失败，响应中缺少字段: {e}")
+        raise
+    except Exception as e:
+        print(f"❌ 获取公钥失败: {e}")
+        raise
 
 
-def update_secret(name, value):
-    encrypt_value = encrypt(KEY, value)
+def update_secret(name, value, key_id, public_key):
+    encrypt_value = encrypt(public_key, value)
     params = {
         'encrypted_value': encrypt_value,
-        'key_id': KEY_ID
+        'key_id': key_id
     }
-    return put(name, params)
+    status = put(name, params)
+    if status not in [201, 204]:
+        print(f"⚠️  更新Secret {name} 返回状态码: {status}")
+    return status
 
 ACCESS_TOKEN = os.environ['ACCESS_TOKEN']
 REFRESH_TOKEN = os.environ['REFRESH_TOKEN']
@@ -68,25 +98,81 @@ def refresh():
     }
     params['sign'] = get_sign(params)
     url = f"https://passport.bilibili.com/api/v2/oauth2/refresh_token"
-    r = requests.post(url, params=params).json()['data']
-    access_token = r['token_info']['access_token']
-    refresh_token = r['token_info']['refresh_token']
     
-    # 从cookies中查找SESSDATA
-    sessdata = None
-    for cookie in r['cookie_info']['cookies']:
-        if cookie.get('name') == 'SESSDATA':
-            sessdata = cookie.get('value')
-            break
-    
-    if not sessdata:
-        raise ValueError("未找到SESSDATA")
-    update_secret('access_token', access_token)
-    update_secret('refresh_token', refresh_token)
-    with open('SESSDATA', 'w', encoding='utf-8') as f:
-        f.write(json.dumps({'value': sessdata, 'updated': datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S %Z')}))
+    try:
+        response = requests.post(url, params=params, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        
+        # 检查API返回码
+        if result.get('code') != 0:
+            error_msg = result.get('message', '未知错误')
+            print(f"❌ 刷新失败: {error_msg}")
+            raise Exception(f"B站API返回错误: {error_msg}")
+        
+        r = result['data']
+        access_token = r['token_info']['access_token']
+        refresh_token = r['token_info']['refresh_token']
+        
+        # 从cookies中查找SESSDATA
+        sessdata = None
+        for cookie in r['cookie_info']['cookies']:
+            if cookie.get('name') == 'SESSDATA':
+                sessdata = cookie.get('value')
+                break
+        
+        if not sessdata:
+            raise ValueError("未找到SESSDATA")
+        
+        # 更新SESSDATA文件
+        sessdata_info = {
+            'value': sessdata,
+            'updated': datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S %Z')
+        }
+        
+        with open('SESSDATA', 'w', encoding='utf-8') as f:
+            f.write(json.dumps(sessdata_info, ensure_ascii=False))
+        
+        print(f"✅ SESSDATA刷新成功: {sessdata}")
+        print(f"   更新时间: {sessdata_info['updated']}")
+        
+        # 返回新的token
+        return access_token, refresh_token, sessdata
+        
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 网络请求错误: {e}")
+        raise
+    except KeyError as e:
+        print(f"❌ 响应数据格式错误，缺少字段: {e}")
+        print(f"响应内容: {response.text if 'response' in locals() else 'N/A'}")
+        raise
+    except Exception as e:
+        print(f"❌ 发生错误: {e}")
+        raise
 
 
 if __name__ == "__main__":
-    KEY_ID, KEY = get_public_key()
-    refresh()
+    try:
+        print("正在获取GitHub公钥...")
+        KEY_ID, KEY = get_public_key()
+        print(f"✅ 获取公钥成功 (key_id: {KEY_ID})")
+        
+        # 刷新token
+        new_access_token, new_refresh_token, sessdata = refresh()
+        
+        # 更新GitHub Secrets
+        print("正在更新GitHub Secrets...")
+        update_secret('ACCESS_TOKEN', new_access_token, KEY_ID, KEY)
+        update_secret('REFRESH_TOKEN', new_refresh_token, KEY_ID, KEY)
+        print("✅ GitHub Secrets更新成功")
+        
+    except KeyError as e:
+        print(f"❌ 环境变量或响应数据缺失: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
+    except Exception as e:
+        print(f"❌ 执行失败: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
