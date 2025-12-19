@@ -86,6 +86,16 @@ REFRESH_TOKEN = os.environ['REFRESH_TOKEN']
 APPKEY = "4409e2ce8ffd12b8"
 APPSEC = "59b43e04ad6965f34319062b478f83dd"
 
+# 添加必要的请求头，避免被B站安全策略拦截
+BILIBILI_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Referer': 'https://www.bilibili.com/',
+    'Origin': 'https://www.bilibili.com',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Content-Type': 'application/x-www-form-urlencoded',
+}
+
 def get_sign(params):
     items = sorted(params.items())
     return md5(f"{urlencode(items)}{APPSEC}".encode('utf-8')).hexdigest()
@@ -100,7 +110,7 @@ def refresh():
     url = f"https://passport.bilibili.com/api/v2/oauth2/refresh_token"
     
     try:
-        response = requests.post(url, params=params, timeout=10)
+        response = requests.post(url, params=params, headers=BILIBILI_HEADERS, timeout=10)
         response.raise_for_status()
         result = response.json()
         
