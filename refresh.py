@@ -19,8 +19,9 @@ def encrypt(public_key: str, secret_value: str) -> str:
 
 
 token = os.environ['REPO_ACCESS_TOKEN']
-owner = 'SK-415'
-repo = 'BiliSessDataShare'
+# 从环境变量获取仓库信息，如果没有则使用默认值（需要手动修改）
+owner = os.environ.get('GITHUB_OWNER', 'defy997')  # 改为你的GitHub用户名
+repo = os.environ.get('GITHUB_REPO', 'bilibili-api')  # 改为你的仓库名
 base_address = f"https://{owner}:{token}@api.github.com/repos/{owner}/{repo}/actions/secrets/"
 headers={'accept': 'application/vnd.github.v3+json'}
 proxies={'http': None, 'https': None}
