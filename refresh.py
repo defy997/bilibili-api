@@ -66,8 +66,8 @@ def put(route, params):
 
 def get_public_key():
     try:
-    r = get('public-key')
-    return r['key_id'], r['key']
+        r = get('public-key')
+        return r['key_id'], r['key']
     except KeyError as e:
         print(f"❌ 获取公钥失败，响应中缺少字段: {e}")
         raise
