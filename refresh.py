@@ -302,11 +302,11 @@ def refresh():
 if __name__ == "__main__":
     try:
         print("正在获取GitHub公钥...")
-    KEY_ID, KEY = get_public_key()
+        KEY_ID, KEY = get_public_key()
         print(f"✅ 获取公钥成功 (key_id: {KEY_ID})")
         
         # 刷新Cookie
-    refresh()
+        refresh()
         
         print("\n" + "=" * 60)
         print("✅ Cookie刷新流程完成!")
