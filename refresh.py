@@ -66,8 +66,8 @@ def put(route, params):
 
 def get_public_key():
     try:
-        r = get('public-key')
-        return r['key_id'], r['key']
+    r = get('public-key')
+    return r['key_id'], r['key']
     except KeyError as e:
         print(f"❌ 获取公钥失败，响应中缺少字段: {e}")
         raise
@@ -302,11 +302,11 @@ def refresh():
 if __name__ == "__main__":
     try:
         print("正在获取GitHub公钥...")
-        KEY_ID, KEY = get_public_key()
+    KEY_ID, KEY = get_public_key()
         print(f"✅ 获取公钥成功 (key_id: {KEY_ID})")
         
         # 刷新Cookie
-        refresh()
+    refresh()
         
         print("\n" + "=" * 60)
         print("✅ Cookie刷新流程完成!")

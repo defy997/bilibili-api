@@ -1,5 +1,7 @@
 # 敏感信息
 tokens.json
+
+# 临时文件
 *.png
 bilibili_qrcode.png
 
